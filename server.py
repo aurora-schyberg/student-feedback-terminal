@@ -6,7 +6,6 @@ import concurrent.futures
 import flask
 from flask import Flask, send_file, request, abort
 from lxml import html
-from time import sleep
 from argparse import ArgumentParser
 
 
