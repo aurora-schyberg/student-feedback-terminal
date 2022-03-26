@@ -1,0 +1,1 @@
+Hi! This is {iname} from Mathnasium of Windermere and we worked with {sname} today. {sname} completed {pages} pages today and showed a clear understanding of the material completed today. Further, we were able to review their homework but did not complete it during our session. {snotes}. Have a great night!

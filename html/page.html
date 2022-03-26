@@ -1,0 +1,78 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="style.css">
+
+        <title>Parent Communication Texts</title>
+    </head>
+    <body>
+        <script src="scripts.js"></script>
+        <header>
+            <h1>Mathnasium Parent Communication Texts</h1>
+        </header>
+        &nbsp;
+        <table class="logintable" class="center">
+            
+                <th>Radius Login</th>
+                <tr>
+                    <td>Username:<input id="radiuslogin" type="text">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        Password: <input id="current-password" type="password">
+                    </td>
+                </tr>
+                <tr>
+                    <td><button id="refresh-button" onclick="loadTable()">Load Student Info</button></td>
+                </tr>
+
+                <!--
+                <tr>
+                    <td>
+                        <mark name="radiusindicator">
+                            Not Logged In
+                        </mark>
+                        &nbsp;
+                        <button name="radiusrequest">Login</button>   
+                    </td>
+                    <td>
+                        <mark name="rcindicator">
+                            Not Logged In
+                        </mark>
+                        &nbsp;
+                        <button name="rcrequest">Login</button>    
+                    </td>
+                </tr>
+                -->
+            
+        </table>
+        &nbsp;
+        <table id="data-table">
+            <!--
+            <tr>
+                <th>Student</th>
+                <th>Parent</th>
+                <th>Date</th>
+                <th>Text Preview</th>
+
+            </tr>
+            <tr>
+                <td></td>
+            </tr>
+            <tr name="JohnSmith">
+                <td>John Smith</td>
+                <td>Jessica Smith</td>
+                <td>01/01/2022</td>
+                <td>
+                        <textarea name="smithtext" autocomplete="on" type="text" disabled>
+                        Hi! This is [instructor name] from Mathnasium of Windermere and we worked with [student name] today. We worked on [topics]. [student name] completed # pages today [reason for low page count if so] /and showed a clear understanding of the material completed. Have a great night!
+                        </textarea>
+                        <button onclick="editText('smithtext')">Edit</button>
+                        <button onclick="sendText('smithtext')">Send</button>
+                        <button>Delete</button>
+                </td>
+            </tr>
+            -->
+        </table>
+    </body>
+</html>

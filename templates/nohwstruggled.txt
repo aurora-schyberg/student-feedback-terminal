@@ -1,0 +1,1 @@
+Hi! This is {iname} from Mathnasium of Windermere and we worked with {sname} today. {sname} completed {pages} pages today. {snotes}. We will continue to work with them next session to ensure a better understanding of this topic. Have a great night!
