@@ -7,7 +7,7 @@ import flask
 from flask import Flask, send_file, request, abort
 from lxml import html
 from argparse import ArgumentParser
-
+from time import perf_counter
 
 PORTAL_PATH = "html/page.html"
 STYLE_PATH = "style/style.css"
@@ -37,10 +37,16 @@ TEMPLATE_PRE_COMPLETED = "templates/precomplete.txt"
 http_server = Flask(__name__)
 
 
-def open_file_wrapper(fun):
-    def inner(*args, **kwargs):
-        with open(fun(*args, **kwargs), "r") as rfile:
-            return rfile.read().strip()
+class CodeTimer:
+    def __init__(self, msg="Took {:0.2f}s", prefix=""):
+        self.start = 0
+        self.msg = prefix + msg
+
+    def __enter__(self):
+        self.start = perf_counter()
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        print(self.msg.format(perf_counter() - self.start))
 
 
 def make_template(
@@ -169,51 +175,72 @@ def dwp_to_student_row(dwp):
     }
 
 
+def get_token(page):
+    token_elem = page.xpath('//input[@name="__RequestVerificationToken"]')
+    if len(token_elem) == 0:
+        print("Failed to find authentication verification token0")
+        return False
+    return token_elem[0].attrib["value"]
+
+
 def perform_login(user, passwd):
-    with requests.Session() as cl:
-        # Find element with name=__RequestVerificationToken
-        login_page_response = cl.get(RADIUS_LOGIN_URL)
-        login_page = html.fromstring(login_page_response.content)
-        token_elem = login_page.xpath(
-            '//form/input[@name="__RequestVerificationToken"]'
-        )
+    with CodeTimer("Took {:.2f}s to login"):
+        with requests.Session() as cl:
+            # Find element with name=__RequestVerificationToken
+            login_page_response = cl.get(RADIUS_LOGIN_URL)
+            login_page = html.fromstring(login_page_response.content)
+            token = get_token(login_page)
 
-        if len(token_elem) == 0:
-            print("Failed to find authentication verification token0")
-            return False
-
-        token = token_elem[0].attrib["value"]
-
-        # Perform login, sending username, password, and authentication code
-        login_attempt = cl.post(
-            RADIUS_LOGIN_URL,
-            data={
-                "UserName": user,
-                "Password": passwd,
-                "__RequestVerificationToken": token,
-                "ReturnUrl": "/",
-            },
-        )
-        return cl.cookies
+            # Perform login, sending username, password, and authentication code
+            login_attempt = cl.post(
+                RADIUS_LOGIN_URL,
+                data={
+                    "UserName": user,
+                    "Password": passwd,
+                    "__RequestVerificationToken": token,
+                    "ReturnUrl": "/",
+                },
+            )
+            return cl.cookies, login_attempt.ok
 
 
 def get_student_data(cookies):
     def get_page_async(cl, url):
         page = cl.get(url)
-        return dwp_to_student_row(html.fromstring(page.content))
+        return page.content
+
+    def map_pages_to_student_rows(cl, manifest):
+        response_list = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for i in manifest:
+                arrival_time = float(i["ArrivalTime"][6:-2]) / 1000
+                date = datetime.datetime.fromtimestamp(arrival_time)
+                if date < (datetime.datetime.now() - datetime.timedelta(days=1)):
+                    continue
+
+                params = (
+                    "/DigitalWorkoutPlan/_Index/?studentId={}&attendanceId={}".format(
+                        i["StudentId"], i["AttendanceId"]
+                    )
+                )
+                dwp_url = RADIUS_BASE_URL + params
+                futures.append(executor.submit(get_page_async, cl=cl, url=dwp_url))
+
+            for future in concurrent.futures.as_completed(futures):
+                response_list.append(
+                    dwp_to_student_row(html.fromstring(future.result()))
+                )
+
+        return response_list
 
     with requests.Session() as cl:
         # Update authentication cookies
         cl.cookies.update(cookies)
         im_page_response = cl.get(RADIUS_IM_URL)
         im_page = html.fromstring(im_page_response.content)
-        token_elem = im_page.xpath('//input[@name="__RequestVerificationToken"]')
 
-        if len(token_elem) == 0:
-            print("Failed to find authentication verification token2")
-            return False
-
-        token = token_elem[0].attrib["value"]
+        token = get_token(im_page)
 
         data_source = cl.post(
             RADIUS_STUDENT_DATA_SOURCE,
@@ -222,27 +249,8 @@ def get_student_data(cookies):
 
         student_manifest = data_source.json()["DataSource"]
 
-        dwp_urls = []
-        for i in student_manifest:
-            arrival_time = float(i["ArrivalTime"][6:-2]) / 1000
-            date = datetime.datetime.fromtimestamp(arrival_time)
-            if date < (datetime.datetime.now() - datetime.timedelta(days=1)):
-                continue
-
-            params = "/DigitalWorkoutPlan/_Index/?studentId={}&attendanceId={}".format(
-                i["StudentId"], i["AttendanceId"]
-            )
-            dwp_urls.append(RADIUS_BASE_URL + params)
-
-        response_list = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = []
-            for i in dwp_urls:
-                futures.append(executor.submit(get_page_async, cl=cl, url=i))
-            for future in concurrent.futures.as_completed(futures):
-                response_list.append(future.result())
-
-        return response_list
+        with CodeTimer("Took {:.2f}s to load students"):
+            return map_pages_to_student_rows(cl, student_manifest)
 
 
 # Route portal HTML, CSS and JS to client
@@ -279,8 +287,12 @@ def scrape_radius():
     if user is None or pswd is None:
         abort(401)
 
-    c = perform_login(user, pswd)
-    return json.dumps(get_student_data(c))
+    cookies, login_ok = perform_login(user, pswd)
+
+    if not login_ok:
+        abort(401)
+
+    return json.dumps(get_student_data(cookies))
 
 
 # Setup argument parsing
