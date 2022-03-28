@@ -87,7 +87,7 @@ def make_template(
         )
 
 
-def dwp_to_student_row(dwp):
+def dwp_to_student_row(dwp, dwpentry):
     def get_checked_element_value(elem):
         if "checked" in elem.attrib:
             return elem.attrib["checked"] == "checked"
@@ -147,10 +147,12 @@ def dwp_to_student_row(dwp):
     # pre_ip = False
     if assessment:
         # Completed a post is an input with   id = CompletedAPost
-        post_c = get_checked_element_value(dwp.get_element_by_id("CompletedAPost"))
+        # post_c = get_checked_element_value(dwp.get_element_by_id("CompletedAPost"))
+        post_c = dwpentry["StudentCompletedAPost"]
 
         # Completed a pre is an input with    id = CompletedAPre
-        pre_c = get_checked_element_value(dwp.get_element_by_id("CompletedAPre"))
+        # pre_c = get_checked_element_value(dwp.get_element_by_id("CompletedAPre"))
+        pre_c = dwpentry["StudentCompletedAPre"]
 
         ## Post in progress is an input with   id = PostInProgress
         # post_ip = get_checked_element_value(dwp.get_element_by_id("PostInProgress"))
@@ -211,12 +213,20 @@ def get_student_data(cookies):
 
     def map_pages_to_student_rows(cl, manifest):
         response_list = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             futures = []
+            dwps = []
             for i in manifest:
+                # print(json.dumps(i, indent=2))
+
+                if i["ArrivalTime"] is None:
+                    continue
+
                 arrival_time = float(i["ArrivalTime"][6:-2]) / 1000
                 date = datetime.datetime.fromtimestamp(arrival_time)
-                if date < (datetime.datetime.now() - datetime.timedelta(days=1)):
+                n = datetime.datetime.now() - datetime.timedelta(days=1)
+                n.replace(hour=0, minute=0, second=0, microsecond=0)
+                if date < n:
                     continue
 
                 params = (
@@ -226,10 +236,11 @@ def get_student_data(cookies):
                 )
                 dwp_url = RADIUS_BASE_URL + params
                 futures.append(executor.submit(get_page_async, cl=cl, url=dwp_url))
+                dwps.append(i["DWPmodel"])
 
-            for future in concurrent.futures.as_completed(futures):
+            for k, future in enumerate(concurrent.futures.as_completed(futures)):
                 response_list.append(
-                    dwp_to_student_row(html.fromstring(future.result()))
+                    dwp_to_student_row(html.fromstring(future.result()), dwps[k])
                 )
 
         return response_list
@@ -255,21 +266,26 @@ def get_student_data(cookies):
 
 # Route portal HTML, CSS and JS to client
 @http_server.route("/", methods=["GET"])
+def root():
+    return send_file(PORTAL_PATH)
+
+
+@http_server.route("/html/page.html", methods=["GET"])
 def portal():
     return send_file(PORTAL_PATH)
 
 
-@http_server.route("/style.css", methods=["GET"])
+@http_server.route("/style/style.css", methods=["GET"])
 def css():
     return send_file(STYLE_PATH)
 
 
-@http_server.route("/scripts.js", methods=["GET"])
+@http_server.route("/scripts/scripts.js", methods=["GET"])
 def scripts():
     return send_file(SCRIPTS_PATH)
 
 
-@http_server.route("/loading.gif", methods=["GET"])
+@http_server.route("/assets/loading.gif", methods=["GET"])
 def loading():
     return send_file(LOADING_PATH)
 

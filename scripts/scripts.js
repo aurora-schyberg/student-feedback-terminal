@@ -127,7 +127,7 @@ function loadTable() {
   var pwd = document.getElementById("current-password").value;
   var post_params = "?user=" + usr + "&passwd=" + pwd
 
-  document.getElementById("data-table").innerHTML = "<th>Loading&nbsp;<img src=\"loading.gif\"></th>"
+  document.getElementById("data-table").innerHTML = "<th>Loading&nbsp;<img src=\"../assets/loading.gif\"></th>"
   var proto = location.protocol;
 
   console.info(proto + "//" + window.location.hostname + "/scrape_radius")
